@@ -47,6 +47,7 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
+// Fetch Random Name
 func getName() (Name, error) {
 	// Declare Return Variable
 	var newName Name
@@ -90,6 +91,7 @@ func getName() (Name, error) {
 	return newName, nil
 }
 
+// Fetch Random Joke
 func getJoke(name Name) (string, error) {
 	// Declare Return Variable
 	var responseData JokeResponseData
@@ -136,6 +138,7 @@ func getJoke(name Name) (string, error) {
 	return responseData.Value.Joke, nil
 }
 
+// Combine Joke and Name
 func makeJoke() (string, error) {
 	// Get Name for Joke
 	name, err := getName()
@@ -156,6 +159,7 @@ func makeJoke() (string, error) {
 	return joke, nil
 }
 
+// Handle Incoming HTTP Requests
 func handler(w http.ResponseWriter, r *http.Request) {
 	var joke string
 	var err error

@@ -26,20 +26,20 @@ type Joke struct {
 	Categories []string `json:"categories"`
 }
 
-//
+// Define Client
 var client http.Client
 
 func main() {
 	// Setup Client & Server
 	client = http.Client{
-		Timeout: 50 * time.Second,
+		Timeout: 10 * time.Second,
 	}
 
 	server := &http.Server{
 		Addr:           ":5000",
 		Handler:        http.HandlerFunc(handler),
-		ReadTimeout:    100 * time.Second,
-		WriteTimeout:   100 * time.Second,
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   30 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
 

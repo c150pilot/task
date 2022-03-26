@@ -43,6 +43,7 @@ func main() {
 		MaxHeaderBytes: 1 << 20,
 	}
 
+	fmt.Println("Server Started on Port: 5000")
 	log.Fatal(server.ListenAndServe())
 }
 
@@ -167,6 +168,5 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	println("JOKE: " + joke)
 	fmt.Fprintf(w, joke)
 }

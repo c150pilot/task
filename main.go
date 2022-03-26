@@ -167,6 +167,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	// Get Joke
 	joke, err = makeJoke()
 
+	// Error Handling
 	if err != nil {
 		log.Panicln(err)
 		return

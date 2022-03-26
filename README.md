@@ -13,4 +13,4 @@ I spent a total of two hours working on the project. One hour was spent setting 
 
 # Requirments
 **Core Functionality**: The program fetches a random name and random joke and then outputs the combined result
-**Load Handling & Concurrent Requests**: The program remains responsive during multiple concurrent requests, although there is an error that occurs due too many requests to the random name API server.
+**Load Handling & Concurrent Requests**: The program utilizes Go routines to help with concurrency and load management. In a production environment load balancing server may be necessary.

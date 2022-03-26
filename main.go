@@ -26,6 +26,16 @@ type Joke struct {
 	Categories []string `json:"categories"`
 }
 
+type NameResult struct {
+	Value Name
+	Error error
+}
+
+type JokeResult struct {
+	Value string
+	Error error
+}
+
 // Define Client
 var client http.Client
 
@@ -48,53 +58,62 @@ func main() {
 }
 
 // Fetch Random Name
-func getName() (Name, error) {
-	// Declare Return Variable
+func getName(result chan NameResult) {
 	var newName Name
+	var resultData NameResult // To Return
 
-	// Fetch First & Last Name from API
-	resp, err := client.Get("https://names.mcquay.me/api/v0/")
+	// Setup to Handle Too Many Requests Error from Random Name API
+	isError := true
+	var resp *http.Response
+	var err error
 
-	// Error Checking
-	if err != nil {
-		log.Panicln(err)
-		return newName, err
-	}
+	for isError {
+		// Fetch First & Last Name from API
+		resp, err = client.Get("https://names.mcquay.me/api/v0/")
 
-	// Defer closing of response body
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
+		// Error Checking
 		if err != nil {
 			log.Panicln(err)
-			return
 		}
-	}(resp.Body)
 
-	// Read from Response Body
-	body, err := ioutil.ReadAll(resp.Body)
+		// Defer closing of response body
+		defer func(Body io.ReadCloser) {
+			err := Body.Close()
+			if err != nil {
+				log.Panicln(err)
+				return
+			}
+		}(resp.Body)
 
-	// Error Checking
-	if err != nil {
-		log.Panicln(err)
-		return newName, err
+		// Read from Response Body
+		body, err := ioutil.ReadAll(resp.Body)
+
+		// Error Checking
+		if err != nil {
+			log.Panicln(err)
+		}
+
+		// Unmarshal JSON string into Name type
+		err = json.Unmarshal(body, &newName)
+
+		// Error Handling
+		if err != nil {
+			fmt.Println("Too Many Requests Error from Name API Server - Retrying")
+		} else {
+			isError = false
+		}
+
 	}
 
-	// Unmarshal JSON string into Name type
-	err = json.Unmarshal(body, &newName)
-
-	// Error Handling
-	if err != nil {
-		log.Panicln(err)
-	}
-
-	// Return Name
-	return newName, nil
+	// Add Name to Channel
+	resultData = NameResult{newName, err}
+	result <- resultData
 }
 
 // Fetch Random Joke
-func getJoke(name Name) (string, error) {
-	// Declare Return Variable
+func getJoke(name Name, result chan JokeResult) {
 	var responseData JokeResponseData
+	var resultData JokeResult // To Return
 
 	// Format Get Request
 	req := "http://api.icndb.com/jokes/random?firstName=" + name.FirstName + "&lastName=" + name.LastName + "&limitTo=nerdy"
@@ -104,16 +123,18 @@ func getJoke(name Name) (string, error) {
 
 	// Error Checking
 	if err != nil {
+		resultData = JokeResult{responseData.Value.Joke, nil}
+		result <- resultData
 		log.Panicln(err)
-		return "", err
 	}
 
 	// Defer closing of response body
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
+			resultData = JokeResult{responseData.Value.Joke, nil}
+			result <- resultData
 			log.Panicln(err)
-			return
 		}
 	}(resp.Body)
 
@@ -122,8 +143,9 @@ func getJoke(name Name) (string, error) {
 
 	// Error Checking
 	if err != nil {
+		resultData = JokeResult{responseData.Value.Joke, nil}
+		result <- resultData
 		log.Panicln(err)
-		return "", err
 	}
 
 	// Unmarshal JSON string into Joke Response Data Type
@@ -131,47 +153,68 @@ func getJoke(name Name) (string, error) {
 
 	// Error Checking
 	if err != nil {
+		resultData = JokeResult{responseData.Value.Joke, nil}
+		result <- resultData
 		log.Panicln(err)
 	}
 
-	// Return Joke as string
-	return responseData.Value.Joke, nil
+	// Add Joke to Channel
+	resultData = JokeResult{responseData.Value.Joke, nil}
+	result <- resultData
 }
 
 // Combine Joke and Name
-func makeJoke() (string, error) {
+func makeJoke(result chan JokeResult) {
+	// Setup Channels to help with concurrency
+	nameResult := make(chan NameResult)
+	jokeResult := make(chan JokeResult)
+
 	// Get Name for Joke
-	name, err := getName()
+	go getName(nameResult)
+
+	// Read from nameResult Channel
+	nResult := <-nameResult
+	err := nResult.Error
+	name := nResult.Value
 
 	// Error Checking
 	if err != nil {
-		log.Panicln(err)
-		return "", err
-	}
-
-	// Get Joke
-	joke, err := getJoke(name)
-	if err != nil {
-		log.Panicln(err)
-		return "", err
-	}
-
-	return joke, nil
-}
-
-// Handle Incoming HTTP Requests
-func handler(w http.ResponseWriter, r *http.Request) {
-	var joke string
-	var err error
-
-	// Get Joke
-	joke, err = makeJoke()
-
-	// Error Handling
-	if err != nil {
+		resultData := JokeResult{"", err}
+		result <- resultData
 		log.Panicln(err)
 		return
 	}
 
-	fmt.Fprintf(w, joke)
+	// Get Joke
+	go getJoke(name, jokeResult)
+
+	// Read from JokeResult Channel
+	jResult := <-jokeResult
+	err = jResult.Error
+	joke := jResult.Value
+
+	if err != nil {
+		resultData := JokeResult{"", err}
+		result <- resultData
+		log.Panicln(err)
+		return
+	}
+	resultData := JokeResult{joke, nil}
+	result <- resultData
+}
+
+// Handle Incoming HTTP Requests
+func handler(w http.ResponseWriter, r *http.Request) {
+	// Get Joke
+	result := make(chan JokeResult)
+	go makeJoke(result)
+	data := <-result
+
+	// Error Handling
+	if data.Error != nil {
+		log.Panicln(data.Error)
+		return
+	}
+
+	fmt.Fprintf(w, data.Value)
 }

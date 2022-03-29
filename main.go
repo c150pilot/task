@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -111,15 +112,12 @@ func getName(result chan NameResult) {
 }
 
 // Fetch Random Joke
-func getJoke(name Name, result chan JokeResult) {
+func getJoke(result chan JokeResult) {
 	var responseData JokeResponseData
 	var resultData JokeResult // To Return
 
-	// Format Get Request
-	req := "http://api.icndb.com/jokes/random?firstName=" + name.FirstName + "&lastName=" + name.LastName + "&limitTo=nerdy"
-
 	// Fetch First & Last Name from API
-	resp, err := client.Get(req)
+	resp, err := client.Get("http://api.icndb.com/jokes/random?firstName=fN&lastName=lN&limitTo=nerdy")
 
 	// Error Checking
 	if err != nil {
@@ -172,6 +170,9 @@ func makeJoke(result chan JokeResult) {
 	// Get Name for Joke
 	go getName(nameResult)
 
+	// Get Joke
+	go getJoke(jokeResult)
+
 	// Read from nameResult Channel
 	nResult := <-nameResult
 	err := nResult.Error
@@ -185,20 +186,23 @@ func makeJoke(result chan JokeResult) {
 		return
 	}
 
-	// Get Joke
-	go getJoke(name, jokeResult)
-
 	// Read from JokeResult Channel
 	jResult := <-jokeResult
 	err = jResult.Error
 	joke := jResult.Value
 
+	// Error Checking
 	if err != nil {
 		resultData := JokeResult{"", err}
 		result <- resultData
 		log.Panicln(err)
 		return
 	}
+
+	// Combine Joke & Name
+	joke = strings.Replace(joke, "fN", name.FirstName, 1)
+	joke = strings.Replace(joke, "lN", name.LastName, 1)
+
 	resultData := JokeResult{joke, nil}
 	result <- resultData
 }
